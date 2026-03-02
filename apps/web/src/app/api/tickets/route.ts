@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db, tickets, workspaces, contacts } from "@supportkit/db";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { canCreateTicket } from "@/lib/tier";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +91,15 @@ export async function POST(req: NextRequest) {
 
     if (!workspace) {
       return NextResponse.json({ error: "No workspace found" }, { status: 404 });
+    }
+
+    // Enforce per-tier monthly ticket limits
+    const allowed = await canCreateTicket(workspace.id);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Monthly ticket limit reached. Please upgrade your plan." },
+        { status: 403 }
+      );
     }
 
     // Verify contact belongs to workspace

@@ -123,7 +123,10 @@ export async function POST(req: NextRequest) {
     const toEmail = extractEmail(toRaw);
 
     // Find workspace by email address (support@slug.supportkit.io)
-    const slug = toEmail.split("@")[0]?.replace(/^support\./, "") ?? "";
+    // Correct extraction: slug is the first label of the hostname, e.g.
+    //   "support@jane-abc123.supportkit.io"  →  slug = "jane-abc123"
+    const hostname = toEmail.split("@")[1] ?? "";
+    const slug = hostname.split(".")[0] ?? "";
 
     const [workspace] = await db
       .select()

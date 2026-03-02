@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, workspaces, contacts, tickets, messages } from "@supportkit/db";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { canCreateTicket } from "@/lib/tier";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Invalid widget key" },
         { status: 404, headers: corsHeaders }
+      );
+    }
+
+    // Enforce per-tier monthly ticket limits
+    const ticketAllowed = await canCreateTicket(workspace.id);
+    if (!ticketAllowed) {
+      return NextResponse.json(
+        { error: "Support inbox is temporarily unavailable. Please try again later." },
+        { status: 503, headers: corsHeaders }
       );
     }
 

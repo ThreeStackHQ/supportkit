@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, tickets, workspaces, messages } from "@supportkit/db";
 import { eq } from "drizzle-orm";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -35,27 +36,33 @@ export default async function DashboardPage() {
           </div>
           <span className="font-semibold text-gray-900">SupportKit</span>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-600">{session.user.email}</span>
-        </div>
+        <nav className="flex items-center gap-4 text-sm">
+          <Link href="/dashboard" className="text-violet-600 font-medium">
+            Overview
+          </Link>
+          <Link href="/dashboard/tickets" className="text-gray-500 hover:text-gray-900">
+            Tickets
+          </Link>
+          <span className="text-gray-600">{session.user.email}</span>
+        </nav>
       </nav>
 
       <main className="max-w-6xl mx-auto px-6 py-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <Link href="/dashboard/tickets?status=open" className="bg-white rounded-xl border border-gray-200 p-6 hover:border-violet-300 transition">
             <p className="text-sm text-gray-500 mb-1">Open tickets</p>
             <p className="text-3xl font-bold text-gray-900">{open}</p>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          </Link>
+          <Link href="/dashboard/tickets?status=pending" className="bg-white rounded-xl border border-gray-200 p-6 hover:border-violet-300 transition">
             <p className="text-sm text-gray-500 mb-1">Pending</p>
             <p className="text-3xl font-bold text-gray-900">{pending}</p>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          </Link>
+          <Link href="/dashboard/tickets?status=resolved" className="bg-white rounded-xl border border-gray-200 p-6 hover:border-violet-300 transition">
             <p className="text-sm text-gray-500 mb-1">Resolved</p>
             <p className="text-3xl font-bold text-gray-900">{resolved}</p>
-          </div>
+          </Link>
         </div>
 
         {workspace && (
