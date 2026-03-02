@@ -67,6 +67,20 @@ function createLauncher(color: string): HTMLButtonElement {
   return btn;
 }
 
+/**
+ * Escape a string for safe insertion into HTML.
+ * Prevents XSS when user-controlled values (workspace name, greeting)
+ * are interpolated into innerHTML templates.
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
 function createPanel(config: WidgetConfig): HTMLDivElement {
   const panel = document.createElement("div");
   panel.id = PANEL_ID;
@@ -75,8 +89,8 @@ function createPanel(config: WidgetConfig): HTMLDivElement {
   panel.innerHTML = `
 <div class="sk-header" style="position:relative">
   <button class="sk-close" aria-label="Close">&times;</button>
-  <h3>${config.workspaceName}</h3>
-  <p>${config.greeting}</p>
+  <h3>${escapeHtml(config.workspaceName)}</h3>
+  <p>${escapeHtml(config.greeting)}</p>
 </div>
 <div class="sk-body">
   <form class="sk-form" id="supportkit-form">

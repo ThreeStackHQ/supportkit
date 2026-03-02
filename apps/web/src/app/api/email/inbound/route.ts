@@ -7,6 +7,7 @@ import {
   messages,
 } from "@supportkit/db";
 import { eq, and } from "drizzle-orm";
+import { createHmac, timingSafeEqual } from "crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -30,9 +31,86 @@ function extractName(from: string): string {
   return match?.[1]?.trim() ?? from.split("@")[0] ?? "Unknown";
 }
 
+/**
+ * Verify Resend webhook signature (HMAC-SHA256).
+ * Resend sends:
+ *   svix-id, svix-timestamp, svix-signature  headers
+ *   (Standard Webhook spec – https://docs.resend.com/docs/webhooks)
+ */
+function verifyResendSignature(
+  rawBody: string,
+  headers: NextRequest["headers"]
+): boolean {
+  const secret = process.env.RESEND_WEBHOOK_SECRET;
+  if (!secret) {
+    // If no secret is configured, skip verification (dev mode)
+    console.warn("RESEND_WEBHOOK_SECRET not set – skipping signature check");
+    return true;
+  }
+
+  const svixId = headers.get("svix-id");
+  const svixTimestamp = headers.get("svix-timestamp");
+  const svixSignature = headers.get("svix-signature");
+
+  if (!svixId || !svixTimestamp || !svixSignature) {
+    return false;
+  }
+
+  // Reject requests older than 5 minutes to prevent replay attacks
+  const timestampMs = Number(svixTimestamp) * 1000;
+  if (Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) {
+    return false;
+  }
+
+  // Standard Webhook signing: "id.timestamp.body"
+  const signedPayload = `${svixId}.${svixTimestamp}.${rawBody}`;
+
+  // Secret may be prefixed with "whsec_" (base64)
+  const secretBytes = secret.startsWith("whsec_")
+    ? Buffer.from(secret.slice(6), "base64")
+    : Buffer.from(secret);
+
+  const expectedHex = createHmac("sha256", secretBytes)
+    .update(signedPayload)
+    .digest("hex");
+
+  // svix-signature may contain multiple "v1,<hex>" entries
+  const signatures = svixSignature.split(" ");
+  for (const sig of signatures) {
+    const parts = sig.split(",");
+    if (parts.length !== 2 || parts[0] !== "v1") continue;
+    const actualHex = parts[1] ?? "";
+    try {
+      const expected = Buffer.from(expectedHex, "hex");
+      const actual = Buffer.from(actualHex, "hex");
+      if (
+        expected.length === actual.length &&
+        timingSafeEqual(expected, actual)
+      ) {
+        return true;
+      }
+    } catch {
+      // invalid hex — try next
+    }
+  }
+
+  return false;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json() as ResendInboundPayload;
+    // Read raw body for signature verification
+    const rawBody = await req.text();
+
+    // --- Signature verification ---
+    if (!verifyResendSignature(rawBody, req.headers)) {
+      return NextResponse.json(
+        { error: "Invalid webhook signature" },
+        { status: 401 }
+      );
+    }
+
+    const body = JSON.parse(rawBody) as ResendInboundPayload;
 
     const fromRaw = body.from ?? "";
     const toRaw = body.to ?? "";
